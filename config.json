@@ -1,0 +1,26 @@
+{
+  "site_name": "TrendPulse",
+  "tagline": "The videos everyone is watching.",
+  "description": "Discover popular YouTube videos this week from current regional charts, refreshed automatically.",
+  "site_url": "",
+  "default_region": "US",
+  "regions": [
+    {
+      "code": "US",
+      "name": "United States"
+    },
+    {
+      "code": "GB",
+      "name": "United Kingdom"
+    },
+    {
+      "code": "IN",
+      "name": "India"
+    },
+    {
+      "code": "EG",
+      "name": "Egypt"
+    }
+  ],
+  "max_videos_per_region": 50
+}
