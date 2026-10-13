@@ -416,7 +416,7 @@ def simple_content(name: str) -> tuple[str, str]:
         return title, content
     if name == "methodology":
         title = "How TrendPulse charts work"
-        content = '''<div class="content-page"><div class="eyebrow">Transparent data method</div><h1>How TrendPulse works</h1><p>TrendPulse retrieves YouTube's official <code>videos.list</code> most-popular chart for each supported country: United States, United Kingdom, India, and Egypt. The order displayed on a regional page is the order returned by YouTube's current chart.</p><h2>Automatic updates</h2><p>GitHub Actions runs approximately every six hours. It fetches the latest country charts from the YouTube Data API, replaces the prior snapshot, pre-renders the pages, and publishes them automatically.</p><h2>What “this week” means here</h2><p>The site is designed to help visitors browse videos that are popular during the current week, with the chart refreshed throughout the week. The YouTube Data API's <code>mostPopular</code> endpoint does not return an official seven-day ranking. This website does not claim that it does and does not create a cross-channel view-growth score from stored history.</p><h2>Limitations</h2><p>The chart varies by country and can change between refreshes. View counts may be rounded or updated by YouTube. Videos can become private, deleted, region-restricted, or otherwise unavailable.</p><p class="method-note">YouTube and Google are trademarks of Google LLC. TrendPulse is an independent discovery site and is not endorsed by YouTube.</p></div>'''
+        content = '''<div class="content-page"><div class="eyebrow">Transparent data method</div><h1>How TrendPulse works</h1><p>TrendPulse retrieves YouTube's official <code>videos.list</code> most-popular chart for every configured supported country and for categories assignable in that country. The order displayed on a regional or category page is the order returned by YouTube's current chart.</p><h2>Automatic updates</h2><p>GitHub Actions runs approximately every six hours. It fetches the latest country charts from the YouTube Data API, replaces the prior snapshot, pre-renders the pages, and publishes them automatically.</p><h2>What “this week” means here</h2><p>The site is designed to help visitors browse videos that are popular during the current week, with the chart refreshed throughout the week. The YouTube Data API's <code>mostPopular</code> endpoint does not return an official seven-day ranking. This website does not claim that it does and does not create a cross-channel view-growth score from stored history.</p><h2>Limitations</h2><p>The chart varies by country and can change between refreshes. View counts may be rounded or updated by YouTube. Videos can become private, deleted, region-restricted, or otherwise unavailable.</p><p class="method-note">YouTube and Google are trademarks of Google LLC. TrendPulse is an independent discovery site and is not endorsed by YouTube.</p></div>'''
         return title, content
     if name == "privacy":
         title = "Privacy policy"
@@ -440,7 +440,7 @@ def main() -> int:
     try:
         state = json.loads((ROOT / "data" / "current.json").read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
-        state = {"last_updated": None, "regions": {}}
+        state = {"last_updated": None, "regions": {}, "categories": {}}
     configured_url = site_url()
     parsed_site = urlparse(configured_url)
     origin = f"{parsed_site.scheme}://{parsed_site.netloc}"
@@ -450,17 +450,27 @@ def main() -> int:
     updated = parse_date(state.get("last_updated"))
     updated_text = updated.strftime("%b %d, %H:%M UTC") if updated else "awaiting first sync"
     all_region_rows = state.get("regions", {})
+    all_category_rows = state.get("categories", {})
 
     def enrich(rows: list[dict]) -> list[dict]:
         output_rows = []
         for row in rows:
             item = dict(row)
-            item["category_name"] = CATEGORY_NAMES.get(str(item.get("category_id", "0")), "Trending")
+            item["category_name"] = item.get("category_name") or CATEGORY_NAMES.get(str(item.get("category_id", "0")), "Trending")
             output_rows.append(item)
         output_rows.sort(key=lambda x: int(x.get("position", 9999) or 9999))
         return output_rows
 
     region_rows = {str(reg["code"]).upper(): enrich(all_region_rows.get(str(reg["code"]).upper(), [])) for reg in regions}
+    region_category_rows = {}
+    for reg in regions:
+        code = str(reg["code"]).upper()
+        raw_categories = all_category_rows.get(code, {})
+        region_category_rows[code] = {
+            str(category_id): enrich(rows)
+            for category_id, rows in raw_categories.items()
+            if isinstance(rows, list) and rows
+        } if isinstance(raw_categories, dict) else {}
     default_rows = region_rows.get(default_region, [])
 
     def save_page(relative: str, html_text: str) -> None:
@@ -470,14 +480,17 @@ def main() -> int:
 
     paths = ["", "about/", "methodology/", "privacy/", "terms/", "contact/"]
     default_name = next((r["name"] for r in regions if str(r["code"]).upper() == default_region), default_region)
-    default_cats = {}
-    for v in default_rows:
-        default_cats.setdefault(slugify(v["category_name"]), (v["category_name"], []))[1].append(v)
     default_category_links = []
-    for slug, (name, category_rows) in sorted(default_cats.items(), key=lambda pair: pair[1][0].lower()):
-        if len(category_rows) >= 2:
-            href = local_url(f"regions/{default_region.lower()}/categories/{slug}", base)
-            default_category_links.append((name, href))
+    default_category_map = {}
+    for category_rows in region_category_rows.get(default_region, {}).values():
+        if not category_rows:
+            continue
+        category_name = category_rows[0].get("category_name") or "Trending"
+        slug = slugify(category_name)
+        default_category_map[slug] = (category_name, local_url(
+            f"regions/{default_region.lower()}/categories/{slug}", base
+        ))
+    default_category_links = sorted(default_category_map.values(), key=lambda item: item[0].lower())
 
     home_body = page_content(default_rows, f"YouTube trending videos in {default_name}",
         f"Latest snapshot from YouTube's current most-popular chart for {default_name}.",
@@ -490,13 +503,18 @@ def main() -> int:
         code = str(region["code"]).upper()
         name = region["name"]
         rows = region_rows.get(code, [])
-        categories = {}
-        for video in rows:
-            categories.setdefault(slugify(video["category_name"]), (video["category_name"], []))[1].append(video)
-        region_category_links = []
-        for slug, (cat_name, cat_videos) in sorted(categories.items(), key=lambda pair: pair[1][0].lower()):
-            if len(cat_videos) >= 2:
-                region_category_links.append((cat_name, local_url(f"regions/{code.lower()}/categories/{slug}", base)))
+        categories = region_category_rows.get(code, {})
+        region_category_map = {}
+        for cat_videos in categories.values():
+            if not cat_videos:
+                continue
+            cat_name = cat_videos[0].get("category_name") or "Trending"
+            slug = slugify(cat_name)
+            region_category_map[slug] = (
+                cat_name,
+                local_url(f"regions/{code.lower()}/categories/{slug}", base),
+            )
+        region_category_links = sorted(region_category_map.values(), key=lambda item: item[0].lower())
 
         desc = f"Explore YouTube trending videos in {name} this week using YouTube's current regional most-popular chart, refreshed every six hours."
         body = page_content(rows, f"YouTube trending videos in {name}",
@@ -507,9 +525,11 @@ def main() -> int:
             desc, full_url(route, origin, base), body, code, regions, base))
         paths.append(route)
 
-        for slug, (cat_name, cat_videos) in sorted(categories.items(), key=lambda pair: pair[1][0].lower()):
-            if len(cat_videos) < 2:
+        for cat_videos in sorted(categories.values(), key=lambda rows: (rows[0].get("category_name", "").lower() if rows else "")):
+            if not cat_videos:
                 continue
+            cat_name = cat_videos[0].get("category_name") or "Trending"
+            slug = slugify(cat_name)
             cat_route = f"regions/{code.lower()}/categories/{slug}/"
             category_desc = f"Browse popular {cat_name.lower()} YouTube videos in {name}, from the latest regional chart refreshed every six hours."
             body = page_content(cat_videos, f"Trending {cat_name} videos in {name}",

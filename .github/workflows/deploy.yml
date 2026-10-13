@@ -19,7 +19,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -33,6 +33,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Validate Python scripts
+        run: python -m py_compile scripts/update_trends.py scripts/build_site.py
 
       - name: Verify YouTube API key is configured
         env:
