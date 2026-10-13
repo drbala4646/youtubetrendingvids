@@ -9,7 +9,7 @@ TrendPulse is a static website designed to help visitors discover popular YouTub
 - Search-focused homepage using the phrase **YouTube trending videos this week**.
 - Country charts across 52 major markets in North America, Latin America, Europe, Africa, the Middle East, and Asia-Pacific; homepage defaults to the US chart.
 - Separate YouTube most-popular charts for every category the API marks assignable in each selected market, plus indexable country/category pages when that category returns videos.
-- Country-specific category pages when enough videos exist in a category.
+- Country/category landing pages for assignable categories that return videos.
 - Pre-rendered HTML, mobile-responsive layout, metadata, canonical URLs, sitemap, and `robots.txt`.
 - Search, sort, YouTube thumbnail cards, direct links to original videos, and visible last-updated time.
 - Three Adsterra placements: top banner, in-feed, and lower-page placement.
