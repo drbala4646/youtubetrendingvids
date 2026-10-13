@@ -554,6 +554,11 @@ def main() -> int:
         save_page(route + "index.html", page_document(f"{title} | TrendPulse", title,
             full_url(route, origin, base), body, "", regions, base))
 
+    # Preserve Google Search Console HTML verification files added to the repository root.
+    # GitHub Pages deploys only the generated output folder, so copy them into it.
+    for verification_file in ROOT.glob("google*.html"):
+        (output / verification_file.name).write_bytes(verification_file.read_bytes())
+
     sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     for path in paths:
         sitemap += f"  <url><loc>{html.escape(full_url(path, origin, base))}</loc><lastmod>{datetime.now(timezone.utc).date().isoformat()}</lastmod></url>\n"
