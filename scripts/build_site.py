@@ -215,8 +215,17 @@ def load_ads(name: str) -> str:
     if not path.exists():
         return ""
     value = path.read_text(encoding="utf-8").strip()
-    if not value or value.startswith("<!-- Paste the Adsterra"):
+    if not value:
         return ""
+
+    # Strip the starter placeholder comment, but preserve any real ad code
+    # pasted below it. Older logic rejected the entire file if it began with
+    # this comment, which silently removed valid Adsterra snippets.
+    if value.startswith("<!-- Paste the Adsterra"):
+        comment_end = value.find("-->")
+        if comment_end >= 0:
+            value = value[comment_end + 3:].strip()
+
     return value
 
 
