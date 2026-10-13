@@ -115,20 +115,27 @@ def main() -> int:
         print(f"Fetching {region['name']} ({code})")
 
         # The all-category country chart powers the region homepage.
-        regional_payload = api_get(VIDEO_API_BASE, {
-            "part": "snippet,statistics,contentDetails",
-            "chart": "mostPopular",
-            "regionCode": code,
-            "maxResults": str(limit),
-        }, api_key)
+        try:
+            regional_payload = api_get(VIDEO_API_BASE, {
+                "part": "snippet,statistics,contentDetails",
+                "chart": "mostPopular",
+                "regionCode": code,
+                "maxResults": str(limit),
+            }, api_key)
+        except RuntimeError as exc:
+            raise RuntimeError(f"Overall chart failed for {code}: {exc}") from exc
         regions[code] = records_from(regional_payload)
 
         # Request the categories actually assignable in this country instead of
         # hard-coding category IDs that may not be available in every region.
-        category_payload = api_get(CATEGORY_API_BASE, {
-            "part": "snippet",
-            "regionCode": code,
-        }, api_key)
+        try:
+            category_payload = api_get(CATEGORY_API_BASE, {
+                "part": "snippet",
+                "regionCode": code,
+            }, api_key)
+        except RuntimeError as exc:
+            raise RuntimeError(f"Category list failed for {code}: {exc}") from exc
+
         country_categories: dict[str, list[dict]] = {}
         for category in category_payload.get("items", []):
             category_id = str(category.get("id", ""))
@@ -137,13 +144,30 @@ def main() -> int:
             if not category_id or not category_name or not snippet.get("assignable", False):
                 continue
 
-            category_payload_for_videos = api_get(VIDEO_API_BASE, {
-                "part": "snippet,statistics,contentDetails",
-                "chart": "mostPopular",
-                "regionCode": code,
-                "videoCategoryId": category_id,
-                "maxResults": str(category_limit),
-            }, api_key)
+            try:
+                category_payload_for_videos = api_get(VIDEO_API_BASE, {
+                    "part": "snippet,statistics,contentDetails",
+                    "chart": "mostPopular",
+                    "regionCode": code,
+                    "videoCategoryId": category_id,
+                    "maxResults": str(category_limit),
+                }, api_key)
+            except RuntimeError as exc:
+                # A category can be assignable for uploads but have no chart
+                # entity for this region. Skip not-found categories, but fail
+                # loudly on quota, credentials, and other operational errors.
+                if "returned HTTP 404" in str(exc):
+                    print(
+                        f"Skipping unavailable chart: {code} / {category_name} "
+                        f"(category ID {category_id}; HTTP 404)",
+                        flush=True,
+                    )
+                    continue
+                raise RuntimeError(
+                    f"Category chart failed for {code} / {category_name} "
+                    f"(category ID {category_id}): {exc}"
+                ) from exc
+
             records = records_from(category_payload_for_videos, category_name)
             if records:
                 country_categories[category_id] = records
