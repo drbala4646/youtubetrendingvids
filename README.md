@@ -7,7 +7,8 @@ TrendPulse is a static website designed to help visitors discover popular YouTub
 ## Included
 
 - Search-focused homepage using the phrase **YouTube trending videos this week**.
-- Separate US, UK, India, and Egypt charts; homepage defaults to the US chart.
+- Country charts across 52 major markets in North America, Latin America, Europe, Africa, the Middle East, and Asia-Pacific; homepage defaults to the US chart.
+- Separate YouTube most-popular charts for every category the API marks assignable in each selected market, plus indexable country/category pages when that category returns videos.
 - Country-specific category pages when enough videos exist in a category.
 - Pre-rendered HTML, mobile-responsive layout, metadata, canonical URLs, sitemap, and `robots.txt`.
 - Search, sort, YouTube thumbnail cards, direct links to original videos, and visible last-updated time.
@@ -67,9 +68,13 @@ Before launch, edit the Privacy, Terms, and Contact text in `scripts/build_site.
 
 There is no way to guarantee that Google will index the site, or rank it for **“youtube trending videos.”** It is a competitive query. Make the site worth returning to with original explanations, useful category pages, internal links, and honest data descriptions. Avoid thin, near-duplicate pages and artificial traffic.
 
+## Regions and categories
+
+The default configuration covers 52 markets. A refresh first asks YouTube which video categories are assignable in each country, then fetches the current most-popular chart for each of those categories. Categories with returned videos receive their own country/category page; empty categories are omitted rather than publishing empty pages. The data is replaced on each run, not archived. The larger coverage uses more YouTube Data API quota than the four-country starter setup, so monitor quota usage in Google Cloud Console after the first full run.
+
 ## How it refreshes
 
-- GitHub Actions fetches the official current `mostPopular` chart for each configured country.
+- GitHub Actions fetches the official current `mostPopular` chart for each configured country and each category marked assignable by YouTube for that country.
 - `data/current.json` is written temporarily in the runner and is not committed to Git history; each workflow begins from the source tree and refreshes it again.
 - The build script generates crawlable pages from that data and adds a sitemap and robots file.
 - The Pages artifact is deployed automatically. No paid server or database is required. If a workflow run fails, the currently deployed site remains until a later successful deployment.
